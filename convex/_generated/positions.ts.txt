@@ -1,0 +1,183 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import { ConvexError } from "convex/values";
+
+export const create = mutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    departmentId: v.id("departments"),
+    level: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      throw new ConvexError({
+        message: "Usuario no tiene organización",
+        code: "FORBIDDEN",
+      });
+    }
+
+    if (user.role !== "admin" && user.role !== "manager") {
+      throw new ConvexError({
+        message: "No tiene permisos para crear posiciones",
+        code: "FORBIDDEN",
+      });
+    }
+
+    const positionId = await ctx.db.insert("positions", {
+      title: args.title,
+      description: args.description,
+      departmentId: args.departmentId,
+      level: args.level,
+      organizationId: user.organizationId,
+    });
+
+    return await ctx.db.get(positionId);
+  },
+});
+
+export const list = query({
+  args: {
+    departmentId: v.optional(v.id("departments")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      return [];
+    }
+
+    const organizationId = user.organizationId;
+
+    if (args.departmentId) {
+      const departmentId = args.departmentId;
+      return await ctx.db
+        .query("positions")
+        .withIndex("by_department", (q) =>
+          q.eq("departmentId", departmentId),
+        )
+        .collect();
+    }
+
+    return await ctx.db
+      .query("positions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect();
+  },
+});
+
+export const update = mutation({
+  args: {
+    positionId: v.id("positions"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    departmentId: v.optional(v.id("departments")),
+    level: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      throw new ConvexError({
+        message: "No tiene permisos para actualizar posiciones",
+        code: "FORBIDDEN",
+      });
+    }
+
+    const { positionId, ...updates } = args;
+    await ctx.db.patch(positionId, updates);
+
+    return await ctx.db.get(positionId);
+  },
+});
+
+export const remove = mutation({
+  args: {
+    positionId: v.id("positions"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || user.role !== "admin") {
+      throw new ConvexError({
+        message: "No tiene permisos para eliminar posiciones",
+        code: "FORBIDDEN",
+      });
+    }
+
+    // Check if there are employees in this position
+    const employeesInPos = await ctx.db
+      .query("employees")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", user.organizationId!),
+      )
+      .filter((q) => q.eq(q.field("positionId"), args.positionId))
+      .first();
+
+    if (employeesInPos) {
+      throw new ConvexError({
+        message: "No se puede eliminar una posición con empleados asignados",
+        code: "CONFLICT",
+      });
+    }
+
+    await ctx.db.delete(args.positionId);
+    return { success: true };
+  },
+});

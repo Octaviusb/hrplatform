@@ -1,0 +1,301 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import { ConvexError } from "convex/values";
+
+export const create = mutation({
+  args: {
+    employeeNumber: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    identificationNumber: v.string(),
+    identificationType: v.union(v.literal("CC"), v.literal("CE"), v.literal("PA")),
+    departmentId: v.optional(v.id("departments")),
+    positionId: v.optional(v.id("positions")),
+    hireDate: v.number(),
+    salary: v.optional(v.number()),
+    vacationDays: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      throw new ConvexError({
+        message: "Usuario no tiene organización",
+        code: "FORBIDDEN",
+      });
+    }
+
+    if (user.role !== "admin" && user.role !== "manager") {
+      throw new ConvexError({
+        message: "No tiene permisos para crear empleados",
+        code: "FORBIDDEN",
+      });
+    }
+
+    // Check if employee number already exists
+    const existingEmployee = await ctx.db
+      .query("employees")
+      .withIndex("by_employee_number", (q) =>
+        q.eq("employeeNumber", args.employeeNumber),
+      )
+      .first();
+
+    if (existingEmployee) {
+      throw new ConvexError({
+        message: "Ya existe un empleado con este número de empleado",
+        code: "CONFLICT",
+      });
+    }
+
+    const employeeId = await ctx.db.insert("employees", {
+      userId: user._id,
+      organizationId: user.organizationId,
+      employeeNumber: args.employeeNumber,
+      firstName: args.firstName,
+      lastName: args.lastName,
+      email: args.email,
+      phone: args.phone,
+      identificationNumber: args.identificationNumber,
+      identificationType: args.identificationType,
+      departmentId: args.departmentId,
+      positionId: args.positionId,
+      hireDate: args.hireDate,
+      status: "active",
+      salary: args.salary,
+      vacationDays: args.vacationDays,
+    });
+
+    return await ctx.db.get(employeeId);
+  },
+});
+
+export const list = query({
+  args: {
+    departmentId: v.optional(v.id("departments")),
+    status: v.optional(v.union(v.literal("active"), v.literal("inactive"), v.literal("suspended"))),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      return [];
+    }
+
+    const organizationId = user.organizationId;
+
+    let query = ctx.db
+      .query("employees")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      );
+
+    if (args.departmentId) {
+      const allEmployees = await query.collect();
+      const filtered = allEmployees.filter(
+        (e) => e.departmentId === args.departmentId,
+      );
+      return args.status
+        ? filtered.filter((e) => e.status === args.status)
+        : filtered;
+    }
+
+    if (args.status) {
+      return await query.filter((q) => q.eq(q.field("status"), args.status)).collect();
+    }
+
+    return await query.collect();
+  },
+});
+
+export const get = query({
+  args: {
+    employeeId: v.id("employees"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const employee = await ctx.db.get(args.employeeId);
+    if (!employee) {
+      throw new ConvexError({
+        message: "Empleado no encontrado",
+        code: "NOT_FOUND",
+      });
+    }
+
+    const department = employee.departmentId
+      ? await ctx.db.get(employee.departmentId)
+      : null;
+
+    const position = employee.positionId
+      ? await ctx.db.get(employee.positionId)
+      : null;
+
+    return {
+      ...employee,
+      departmentName: department?.name,
+      positionTitle: position?.title,
+    };
+  },
+});
+
+export const update = mutation({
+  args: {
+    employeeId: v.id("employees"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    departmentId: v.optional(v.id("departments")),
+    positionId: v.optional(v.id("positions")),
+    status: v.optional(v.union(v.literal("active"), v.literal("inactive"), v.literal("suspended"))),
+    salary: v.optional(v.number()),
+    vacationDays: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      throw new ConvexError({
+        message: "No tiene permisos para actualizar empleados",
+        code: "FORBIDDEN",
+      });
+    }
+
+    const { employeeId, ...updates } = args;
+    await ctx.db.patch(employeeId, updates);
+
+    return await ctx.db.get(employeeId);
+  },
+});
+
+export const remove = mutation({
+  args: {
+    employeeId: v.id("employees"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || user.role !== "admin") {
+      throw new ConvexError({
+        message: "No tiene permisos para eliminar empleados",
+        code: "FORBIDDEN",
+      });
+    }
+
+    await ctx.db.delete(args.employeeId);
+    return { success: true };
+  },
+});
+
+export const getWithDetails = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      return [];
+    }
+
+    const organizationId = user.organizationId;
+
+    const employees = await ctx.db
+      .query("employees")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect();
+
+    const employeesWithDetails = await Promise.all(
+      employees.map(async (emp) => {
+        const department = emp.departmentId
+          ? await ctx.db.get(emp.departmentId)
+          : null;
+
+        const position = emp.positionId
+          ? await ctx.db.get(emp.positionId)
+          : null;
+
+        return {
+          ...emp,
+          departmentName: department?.name || "Sin asignar",
+          positionTitle: position?.title || "Sin asignar",
+        };
+      }),
+    );
+
+    return employeesWithDetails;
+  },
+});

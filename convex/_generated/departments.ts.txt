@@ -1,0 +1,238 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import { ConvexError } from "convex/values";
+
+export const create = mutation({
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+    managerId: v.optional(v.id("employees")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      throw new ConvexError({
+        message: "Usuario no tiene organización",
+        code: "FORBIDDEN",
+      });
+    }
+
+    if (user.role !== "admin" && user.role !== "manager") {
+      throw new ConvexError({
+        message: "No tiene permisos para crear departamentos",
+        code: "FORBIDDEN",
+      });
+    }
+
+    const departmentId = await ctx.db.insert("departments", {
+      name: args.name,
+      description: args.description,
+      organizationId: user.organizationId,
+      managerId: args.managerId,
+    });
+
+    return await ctx.db.get(departmentId);
+  },
+});
+
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      return [];
+    }
+
+    const organizationId = user.organizationId;
+
+    return await ctx.db
+      .query("departments")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect();
+  },
+});
+
+export const get = query({
+  args: {
+    departmentId: v.id("departments"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    return await ctx.db.get(args.departmentId);
+  },
+});
+
+export const update = mutation({
+  args: {
+    departmentId: v.id("departments"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    managerId: v.optional(v.id("employees")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      throw new ConvexError({
+        message: "No tiene permisos para actualizar departamentos",
+        code: "FORBIDDEN",
+      });
+    }
+
+    const { departmentId, ...updates } = args;
+    await ctx.db.patch(departmentId, updates);
+
+    return await ctx.db.get(departmentId);
+  },
+});
+
+export const remove = mutation({
+  args: {
+    departmentId: v.id("departments"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || user.role !== "admin") {
+      throw new ConvexError({
+        message: "No tiene permisos para eliminar departamentos",
+        code: "FORBIDDEN",
+      });
+    }
+
+    // Check if there are employees in this department
+    const employeesInDept = await ctx.db
+      .query("employees")
+      .withIndex("by_department", (q) => q.eq("departmentId", args.departmentId))
+      .first();
+
+    if (employeesInDept) {
+      throw new ConvexError({
+        message: "No se puede eliminar un departamento con empleados asignados",
+        code: "CONFLICT",
+      });
+    }
+
+    await ctx.db.delete(args.departmentId);
+    return { success: true };
+  },
+});
+
+export const getWithEmployeeCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError({
+        message: "Usuario no autenticado",
+        code: "UNAUTHENTICATED",
+      });
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || !user.organizationId) {
+      return [];
+    }
+
+    const organizationId = user.organizationId;
+
+    const departments = await ctx.db
+      .query("departments")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect();
+
+    const departmentsWithCount = await Promise.all(
+      departments.map(async (dept) => {
+        const employees = await ctx.db
+          .query("employees")
+          .withIndex("by_department", (q) => q.eq("departmentId", dept._id))
+          .collect();
+
+        const manager = dept.managerId
+          ? await ctx.db.get(dept.managerId)
+          : null;
+
+        return {
+          ...dept,
+          employeeCount: employees.length,
+          managerName: manager
+            ? `${manager.firstName} ${manager.lastName}`
+            : null,
+        };
+      }),
+    );
+
+    return departmentsWithCount;
+  },
+});

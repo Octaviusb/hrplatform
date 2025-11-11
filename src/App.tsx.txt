@@ -1,0 +1,58 @@
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import Login from "./pages/Login";
+import Dashboard from "./pages/dashboard/page.tsx";
+import EmployeesPage from "./pages/employees/page";
+import DepartmentsPage from "./pages/departments/page";
+import ObservationsPage from "./pages/observations/page.tsx";
+import InterviewsPage from "./pages/interviews/page.tsx";
+import JobAnalysisPage from "./pages/job-analysis/page.tsx";
+import DevelopmentPlansPage from "./pages/development-plans/page.tsx";
+import VacationsPage from "./pages/vacations/page.tsx";
+import AttendancePage from "./pages/attendance/page.tsx";
+import PayrollPage from "./pages/payroll/page.tsx";
+import RecruitmentPage from "./pages/recruitment/page.tsx";
+import TrainingPage from "./pages/training/page.tsx";
+import NotFound from "./pages/NotFound.tsx";
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+  }
+  
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
+      <Route path="/departments" element={<ProtectedRoute><DepartmentsPage /></ProtectedRoute>} />
+      <Route path="/observations" element={<ProtectedRoute><ObservationsPage /></ProtectedRoute>} />
+      <Route path="/interviews" element={<ProtectedRoute><InterviewsPage /></ProtectedRoute>} />
+      <Route path="/job-analysis" element={<ProtectedRoute><JobAnalysisPage /></ProtectedRoute>} />
+      <Route path="/development-plans" element={<ProtectedRoute><DevelopmentPlansPage /></ProtectedRoute>} />
+      <Route path="/vacations" element={<ProtectedRoute><VacationsPage /></ProtectedRoute>} />
+      <Route path="/attendance" element={<ProtectedRoute><AttendancePage /></ProtectedRoute>} />
+      <Route path="/payroll" element={<ProtectedRoute><PayrollPage /></ProtectedRoute>} />
+      <Route path="/recruitment" element={<ProtectedRoute><RecruitmentPage /></ProtectedRoute>} />
+      <Route path="/training" element={<ProtectedRoute><TrainingPage /></ProtectedRoute>} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

@@ -1,0 +1,633 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  globalRole   String        @default("user")
+  memberships  Membership[]
+  auditLogs    AuditLog[]    @relation("AuditUser")
+  employees    Employee[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Organization {
+  id        String        @id @default(cuid())
+  name      String
+  nit       String        @unique
+  size      String
+  address   String?
+  phone     String?
+  email     String?
+  industry  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  memberships Membership[]
+  departments Department[]
+  positions   Position[]
+  employees   Employee[]
+  roles       Role[]
+  observations Observation[]
+  interviews   Interview[]
+  vacations    Vacation[]
+  attendances  Attendance[]
+  payrolls     Payroll[]
+  jobAnalyses  JobAnalysis[]
+  developmentPlans DevelopmentPlan[]
+  trainings    Training[]
+  evaluations  PerformanceEvaluation[]
+  competencies Competency[]
+  benefits     Benefit[]
+  disciplinaryCases DisciplinaryCase[]
+}
+
+model Membership {
+  id             String        @id @default(cuid())
+  user           User          @relation(fields: [userId], references: [id])
+  userId         String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  roles          UserRole[]
+  createdAt      DateTime      @default(now())
+  @@unique([userId, organizationId])
+}
+
+model Role {
+  id             String        @id @default(cuid())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
+  name           String
+  roleKey        String
+  description    String?
+  permissions    RolePermission[]
+  users          UserRole[]
+  @@unique([organizationId, roleKey])
+}
+
+model Permission {
+  id          String            @id @default(cuid())
+  key         String            @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  role         Role       @relation(fields: [roleId], references: [id])
+  roleId       String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  permissionId String
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  id           String  @id @default(cuid())
+  membership   Membership @relation(fields: [membershipId], references: [id])
+  membershipId String
+  role         Role    @relation(fields: [roleId], references: [id])
+  roleId       String
+  @@unique([membershipId, roleId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actor       User?    @relation("AuditUser", fields: [actorId], references: [id])
+  actorId     String?
+  organizationId String?
+  action      String
+  entity      String?
+  entityId    String?
+  ip          String?
+  userAgent   String?
+  before      String?
+  after       String?
+  createdAt   DateTime @default(now())
+}
+
+model Department {
+  id             String        @id @default(cuid())
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  description    String?
+  positions      Position[]
+  employees      Employee[]
+  jobAnalyses    JobAnalysis[]
+}
+
+model Position {
+  id             String        @id @default(cuid())
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  department     Department    @relation(fields: [departmentId], references: [id])
+  departmentId   String
+  title          String
+  description    String?
+  level          String?
+  employees      Employee[]
+  competencies   PositionCompetency[]
+}
+
+model Employee {
+  id                   String        @id @default(cuid())
+  user                 User?         @relation(fields: [userId], references: [id])
+  userId               String?
+  organization         Organization  @relation(fields: [organizationId], references: [id])
+  organizationId       String
+  employeeNumber       String
+  firstName            String
+  lastName             String
+  email                String
+  phone                String?
+  identificationNumber String
+  identificationType   String
+  department           Department?   @relation(fields: [departmentId], references: [id])
+  departmentId         String?
+  position             Position?     @relation(fields: [positionId], references: [id])
+  positionId           String?
+  hireDate             DateTime
+  status               String
+  salary               Float?
+  vacationDays         Int
+  
+  testAssignments      TestAssignment[]
+  testResults          TestResult[]
+  observations         Observation[]
+  interviews           Interview[]
+  vacations            Vacation[]
+  attendances          Attendance[]
+  payrolls             Payroll[]
+  jobAnalyses          JobAnalysis[]
+  developmentPlans     DevelopmentPlan[]
+  trainingEnrollments  TrainingEnrollment[]
+  evaluations          PerformanceEvaluation[]
+  evaluatorFor         PerformanceEvaluation[] @relation("EvaluatorRelation")
+  competencies         EmployeeCompetency[]
+  benefits             EmployeeBenefit[]
+  disciplinaryCases    DisciplinaryCase[]
+}
+
+model PsychometricTest {
+  id             String           @id @default(cuid())
+  name           String
+  description    String?
+  category       String
+  duration       Int
+  instructions   String
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  
+  questions      TestQuestion[]
+  assignments    TestAssignment[]
+  results        TestResult[]
+}
+
+model TestQuestion {
+  id           String           @id @default(cuid())
+  test         PsychometricTest @relation(fields: [testId], references: [id])
+  testId       String
+  questionText String
+  questionType String
+  options      String?
+  correctAnswer String?
+  weight       Float            @default(1.0)
+  order        Int
+  
+  answers      TestAnswer[]
+}
+
+model TestAssignment {
+  id         String           @id @default(cuid())
+  test       PsychometricTest @relation(fields: [testId], references: [id])
+  testId     String
+  employee   Employee         @relation(fields: [employeeId], references: [id])
+  employeeId String
+  assignedBy String
+  assignedAt DateTime         @default(now())
+  dueDate    DateTime?
+  status     String           @default("pending")
+  startedAt  DateTime?
+  completedAt DateTime?
+  
+  result     TestResult?
+}
+
+model TestResult {
+  id           String         @id @default(cuid())
+  assignment   TestAssignment @relation(fields: [assignmentId], references: [id])
+  assignmentId String         @unique
+  test         PsychometricTest @relation(fields: [testId], references: [id])
+  testId       String
+  employee     Employee       @relation(fields: [employeeId], references: [id])
+  employeeId   String
+  score        Float?
+  percentile   Float?
+  interpretation String?
+  recommendations String?
+  completedAt  DateTime       @default(now())
+  
+  answers      TestAnswer[]
+  traits       PersonalityTrait[]
+}
+
+model TestAnswer {
+  id         String       @id @default(cuid())
+  result     TestResult   @relation(fields: [resultId], references: [id])
+  resultId   String
+  question   TestQuestion @relation(fields: [questionId], references: [id])
+  questionId String
+  answer     String
+  score      Float?
+  timeSpent  Int?
+}
+
+model PersonalityTrait {
+  id       String     @id @default(cuid())
+  result   TestResult @relation(fields: [resultId], references: [id])
+  resultId String
+  trait    String
+  score    Float
+  level    String
+  description String?
+}
+
+model Observation {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  observedBy     String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  type           String
+  category       String
+  content        String
+  rating         Float?
+  date           DateTime     @default(now())
+}
+
+model Interview {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  interviewedBy  String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  type           String
+  scheduledDate  DateTime
+  completedDate  DateTime?
+  status         String       @default("scheduled")
+  notes          String?
+  outcome        String?
+}
+
+model Vacation {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  startDate      DateTime
+  endDate        DateTime
+  days           Int
+  status         String       @default("pending")
+  requestedDate  DateTime     @default(now())
+  approvedBy     String?
+  approvedDate   DateTime?
+  comments       String?
+}
+
+model Attendance {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  date           DateTime
+  checkIn        DateTime?
+  checkOut       DateTime?
+  hoursWorked    Float?
+  overtimeHours  Float?
+  status         String
+}
+
+model Payroll {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  period         String
+  periodStart    DateTime
+  periodEnd      DateTime
+  baseSalary     Float
+  bonuses        Float        @default(0)
+  deductions     Float        @default(0)
+  netSalary      Float
+  status         String       @default("draft")
+  paymentDate    DateTime?
+  dianStatus     String       @default("pending")
+  dianReference  String?
+  dianResponse   String?
+}
+
+model JobAnalysis {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  employeeId     String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  departmentId   String?
+  positionTitle  String
+  summary        String
+  responsibilities String
+  requirements   String
+  skills         String
+  competencies   String
+  workConditions String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model DevelopmentPlan {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  title          String
+  description    String
+  objectives     String
+  timeline       String
+  resources      String?
+  status         String       @default("active")
+  progress       Float        @default(0)
+  createdBy      String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Training {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  title          String
+  description    String
+  category       String
+  type           String
+  duration       Int
+  instructor     String?
+  capacity       Int?
+  startDate      DateTime
+  endDate        DateTime
+  status         String       @default("scheduled")
+  cost           Float?
+  location       String?
+  materials      String?
+  createdAt      DateTime     @default(now())
+  
+  enrollments    TrainingEnrollment[]
+}
+
+model TrainingEnrollment {
+  id             String       @id @default(cuid())
+  training       Training     @relation(fields: [trainingId], references: [id])
+  trainingId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  enrolledBy     String
+  enrolledAt     DateTime     @default(now())
+  status         String       @default("enrolled")
+  completedAt    DateTime?
+  score          Float?
+  feedback       String?
+  certificate   String?
+}
+
+model PerformanceEvaluation {
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String
+  evaluator      Employee     @relation("EvaluatorRelation", fields: [evaluatorId], references: [id])
+  evaluatorId    String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  period         String
+  type           String       // "annual", "quarterly", "360", "probation"
+  status         String       @default("draft")
+  overallScore   Float?
+  goals          String?
+  achievements   String?
+  improvements   String?
+  comments       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  criteria       EvaluationCriteria[]
+}
+
+model EvaluationCriteria {
+  id           String                @id @default(cuid())
+  evaluation   PerformanceEvaluation @relation(fields: [evaluationId], references: [id])
+  evaluationId String
+  category     String
+  criterion    String
+  weight       Float                 @default(1.0)
+  score        Float?
+  comments     String?
+}
+
+model Competency {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  description    String
+  category       String
+  level          String       // "basic", "intermediate", "advanced", "expert"
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  
+  employeeCompetencies EmployeeCompetency[]
+  positionCompetencies PositionCompetency[]
+}
+
+model EmployeeCompetency {
+  id           String     @id @default(cuid())
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+  employeeId   String
+  competency   Competency @relation(fields: [competencyId], references: [id])
+  competencyId String
+  currentLevel String
+  targetLevel  String?
+  assessedBy   String
+  assessedAt   DateTime   @default(now())
+  evidence     String?
+  
+  @@unique([employeeId, competencyId])
+}
+
+model PositionCompetency {
+  id           String     @id @default(cuid())
+  position     Position   @relation(fields: [positionId], references: [id])
+  positionId   String
+  competency   Competency @relation(fields: [competencyId], references: [id])
+  competencyId String
+  requiredLevel String
+  importance   String     @default("medium")
+  
+  @@unique([positionId, competencyId])
+}
+
+model Benefit {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  description    String
+  category       String
+  type           String       // "monetary", "non-monetary", "time-off"
+  value          Float?
+  isActive       Boolean      @default(true)
+  eligibility    String?
+  createdAt      DateTime     @default(now())
+  
+  employeeBenefits EmployeeBenefit[]
+}
+
+model EmployeeBenefit {
+  id         String   @id @default(cuid())
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  employeeId String
+  benefit    Benefit  @relation(fields: [benefitId], references: [id])
+  benefitId  String
+  startDate  DateTime
+  endDate    DateTime?
+  value      Float?
+  status     String   @default("active")
+  assignedBy String
+  assignedAt DateTime @default(now())
+  
+  @@unique([employeeId, benefitId])
+}
+
+/// Disciplinary module
+model DisciplinaryCase {
+  id              String         @id @default(cuid())
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  organizationId  String
+  employee        Employee       @relation(fields: [employeeId], references: [id])
+  employeeId      String
+  status          String         @default("open")
+  reasonSummary   String
+  details         String?
+  openedByUserId  String
+  deadlines       String?        // JSON
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  charges         Charge[]
+  notifications   Notification[]
+  defenses        DefenseSubmission[]
+  hearings        Hearing[]
+  sanctions       Sanction[]
+  terminations    Termination[]
+  attachments     Attachment[]
+}
+
+model Charge {
+  id          String           @id @default(cuid())
+  case        DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId      String
+  title       String
+  description String
+  legalBasis  String?
+  severity    String           @default("medium")
+  createdByUserId String
+  createdAt   DateTime         @default(now())
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  case          DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId        String
+  type          String
+  channel       String
+  sentAt        DateTime?
+  acknowledgedAt DateTime?
+  toEmail       String?
+  deliveryProofUrl String?
+  createdByUserId String
+  createdAt     DateTime         @default(now())
+}
+
+model DefenseSubmission {
+  id                  String           @id @default(cuid())
+  case                DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId              String
+  submittedByEmployeeId String
+  content             String
+  submittedAt         DateTime         @default(now())
+  attachmentsCount    Int              @default(0)
+}
+
+model Hearing {
+  id           String           @id @default(cuid())
+  case         DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId       String
+  scheduledAt  DateTime
+  place        String?
+  panel        String?          // JSON
+  heldAt       DateTime?
+  minutesUrl   String?
+  resultSummary String?
+  createdAt    DateTime         @default(now())
+}
+
+model Sanction {
+  id              String           @id @default(cuid())
+  case            DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId          String
+  type            String
+  days            Int?
+  startDate       DateTime?
+  endDate         DateTime?
+  decisionDate    DateTime        @default(now())
+  decisionByUserId String
+  justification   String
+  pdfUrl          String?
+}
+
+model Termination {
+  id              String           @id @default(cuid())
+  case            DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId          String
+  causeCode       String
+  causeText       String
+  effectiveDate   DateTime
+  decisionByUserId String
+  settlementReference String?
+  letterUrl       String?
+  createdAt       DateTime        @default(now())
+}
+
+model Attachment {
+  id           String           @id @default(cuid())
+  case         DisciplinaryCase @relation(fields: [caseId], references: [id])
+  caseId       String
+  fileUrl      String
+  fileName     String
+  type         String
+  uploadedByUserId String
+  uploadedAt   DateTime         @default(now())
+}

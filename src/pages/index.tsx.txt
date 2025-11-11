@@ -1,0 +1,76 @@
+import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api.js";
+import { SignInButton } from "@/components/ui/signin.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
+import AppLayout from "./_components/app-layout.tsx";
+import DashboardPage from "./dashboard/page.tsx";
+import OnboardingPage from "./onboarding/page.tsx";
+import { Users } from "lucide-react";
+
+function IndexContent() {
+  const organization = useQuery(api.organizations.getUserOrganization);
+
+  if (organization === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="space-y-4 text-center">
+          <Skeleton className="mx-auto h-16 w-16 rounded-full" />
+          <Skeleton className="mx-auto h-8 w-64" />
+          <Skeleton className="mx-auto h-4 w-96" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!organization) {
+    return <OnboardingPage />;
+  }
+
+  return (
+    <AppLayout>
+      <DashboardPage />
+    </AppLayout>
+  );
+}
+
+export default function Index() {
+  return (
+    <>
+      <Unauthenticated>
+        <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+          <div className="text-center space-y-6 max-w-2xl">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Users size={40} />
+            </div>
+            <h1 className="text-4xl text-balance font-bold tracking-tight">
+              Competency Manager
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              Sistema colombiano de gestión de talento humano con cumplimiento
+              total de normatividad laboral, contable y tributaria
+            </p>
+            <div className="space-y-4">
+              <SignInButton />
+              <p className="text-sm text-muted-foreground">
+                Inicia sesión para comenzar a gestionar tu organización
+              </p>
+            </div>
+          </div>
+        </div>
+      </Unauthenticated>
+      <AuthLoading>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="space-y-4 text-center">
+            <Skeleton className="mx-auto h-20 w-20 rounded-full" />
+            <Skeleton className="mx-auto h-8 w-64" />
+            <Skeleton className="mx-auto h-4 w-96" />
+          </div>
+        </div>
+      </AuthLoading>
+      <Authenticated>
+        <IndexContent />
+      </Authenticated>
+    </>
+  );
+}

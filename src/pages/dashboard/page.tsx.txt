@@ -1,0 +1,68 @@
+import { useAuth } from '../../contexts/AuthContext';
+import { Link } from 'react-router-dom';
+
+export default function Dashboard() {
+  const { user, logout } = useAuth();
+
+  const modules = [
+    { name: 'Empleados', path: '/employees', icon: '👥' },
+    { name: 'Departamentos', path: '/departments', icon: '🏢' },
+    { name: 'Observaciones', path: '/observations', icon: '📝' },
+    { name: 'Entrevistas', path: '/interviews', icon: '💬' },
+    { name: 'Análisis de Puestos', path: '/job-analysis', icon: '📊' },
+    { name: 'Planes de Desarrollo', path: '/development-plans', icon: '📈' },
+    { name: 'Vacaciones', path: '/vacations', icon: '🏖️' },
+    { name: 'Asistencia', path: '/attendance', icon: '⏰' },
+    { name: 'Nómina', path: '/payroll', icon: '💰' },
+    { name: 'Reclutamiento', path: '/recruitment', icon: '🎯' },
+    { name: 'Capacitación', path: '/training', icon: '🎓' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-semibold text-gray-900">Sistema de Competencias</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-700">Hola, {user?.name}</span>
+              <button
+                onClick={logout}
+                className="text-sm text-red-600 hover:text-red-500"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Panel de Control</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {modules.map((module) => (
+              <Link
+                key={module.path}
+                to={module.path}
+                className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="p-6">
+                  <div className="flex items-center">
+                    <div className="text-3xl mr-4">{module.icon}</div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">{module.name}</h3>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
