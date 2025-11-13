@@ -24,6 +24,7 @@ import evaluationsRouter from './routes/evaluations.js';
 import competenciesRouter from './routes/competencies.js';
 import benefitsRouter from './routes/benefits.js';
 import disciplinaryRouter from './routes/disciplinary.js';
+import systemRouter from './routes/system.js';
 const app = express();
 const prisma = new PrismaClient();
 // CORS configuration
@@ -66,6 +67,7 @@ app.use('/api/evaluations', evaluationsRouter);
 app.use('/api/competencies', competenciesRouter);
 app.use('/api/benefits', benefitsRouter);
 app.use('/api/disciplinary', disciplinaryRouter);
+app.use('/api/system', systemRouter);
 const PORT = Number(process.env.PORT || 4000);
 const server = app.listen(PORT, () => {
     console.log(`Backend running on http://localhost:${PORT}`);

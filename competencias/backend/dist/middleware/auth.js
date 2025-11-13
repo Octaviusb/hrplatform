@@ -10,7 +10,7 @@ export const requireAuth = async (req, res, next) => {
         }
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
+            where: { id: decoded.sub },
             include: {
                 memberships: {
                     include: {

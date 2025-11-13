@@ -272,21 +272,39 @@ router.put('/superadmin/organizations/:id', async (req, res) => {
 // Delete organization (superadmin only)
 router.delete('/superadmin/organizations/:id', async (req, res) => {
     try {
+        const orgId = req.params.id;
         // Check if organization has employees
-        const employeeCount = await prisma.employee.count({
-            where: { organizationId: req.params.id }
-        });
+        const employeeCount = await prisma.employee.count({ where: { organizationId: orgId } });
         if (employeeCount > 0) {
             return res.status(400).json({
-                error: 'Cannot delete organization with employees. Please remove all employees first.'
+                error: 'No es posible eliminar la organización: aún tiene empleados. Elimina o traslada a todos los empleados primero.'
             });
         }
-        await prisma.organization.delete({
-            where: { id: req.params.id }
-        });
+        // Check if organization has departments
+        const departmentCount = await prisma.department.count({ where: { organizationId: orgId } });
+        if (departmentCount > 0) {
+            return res.status(400).json({
+                error: 'No es posible eliminar la organización: existen departamentos asociados. Elimina los departamentos primero.'
+            });
+        }
+        // Check memberships (usuarios asignados a la organización)
+        const membershipCount = await prisma.membership.count({ where: { organizationId: orgId } });
+        if (membershipCount > 0) {
+            return res.status(400).json({
+                error: 'No es posible eliminar la organización: hay usuarios/membresías asociadas. Remuévelas primero.'
+            });
+        }
+        await prisma.organization.delete({ where: { id: orgId } });
         res.json({ success: true });
     }
     catch (error) {
+        // Prisma FK constraint
+        if (error?.code === 'P2003') {
+            return res.status(400).json({
+                error: 'No es posible eliminar la organización por registros relacionados. Asegúrate de eliminar empleados, departamentos, nómina, roles, permisos y membresías asociadas.'
+            });
+        }
+        console.error('Delete organization error:', error);
         res.status(500).json({ error: 'Failed to delete organization' });
     }
 });

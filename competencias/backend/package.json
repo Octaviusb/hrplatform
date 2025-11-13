@@ -5,17 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p . && npx prisma generate",
+    "build": "npx tsc -p . && npx prisma generate",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
     "seed:demo": "node seed-demo-data.js",
-    "postinstall": "npx prisma generate"
+    "postinstall": "npx prisma generate",
+    "etl:import": "tsx scripts/import-to-postgres.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.18.0",
+    "@prisma/client": "^5.22.0",
+    "better-sqlite3": "^11.8.1",
     "@types/multer": "^2.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -25,6 +27,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
+    "pg": "^8.16.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "zod": "^3.23.8"
@@ -38,7 +41,7 @@
     "@types/node": "^20.11.30",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
-    "prisma": "^5.18.0",
+    "prisma": "^5.22.0",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.4.5"

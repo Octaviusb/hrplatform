@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 
 const prisma = new PrismaClient();
@@ -63,9 +63,9 @@ router.post('/', async (req, res) => {
       data: { name, nit, size, address, phone, email, industry } 
     });
     res.status(201).json(org);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating organization:', error);
-    if (error.code === 'P2002') {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       res.status(400).json({ error: 'Organization with this NIT already exists' });
     } else {
       res.status(500).json({ error: 'Error creating organization' });
